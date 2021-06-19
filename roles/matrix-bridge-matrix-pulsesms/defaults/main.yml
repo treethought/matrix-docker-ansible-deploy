@@ -1,0 +1,111 @@
+# matrix-pulsesms is a Matrix <-> pulsesms bridge
+# See: https://github.com/tulir/matrix-pulsesms
+
+matrix_matrix_pulsesms_enabled: true
+
+matrix_matrix_pulsesms_version: latest
+# See: https://mau.dev/tulir/matrix-whatsapp/container_registry
+matrix_matrix_pulsesms_docker_image: "treethought/matrix-pulsesms:{{ matrix_matrix_pulsesms_version }}"
+matrix_matrix_pulsesms_docker_image_force_pull: "{{ matrix_matrix_pulsesms_docker_image.endswith(':latest') }}"
+
+matrix_matrix_pulsesms_base_path: "{{ matrix_base_data_path }}/matrix-pulsesms"
+matrix_matrix_pulsesms_config_path: "{{ matrix_matrix_pulsesms_base_path }}/config"
+matrix_matrix_pulsesms_data_path: "{{ matrix_matrix_pulsesms_base_path }}/data"
+
+matrix_matrix_pulsesms_homeserver_address: "{{ matrix_homeserver_container_url }}"
+matrix_matrix_pulsesms_homeserver_domain: "{{ matrix_domain }}"
+matrix_matrix_pulsesms_appservice_address: "http://matrix-matrix-pulsesms:8080"
+
+# A list of extra arguments to pass to the container
+matrix_matrix_pulsesms_container_extra_arguments: []
+
+# List of systemd services that matrix-matrix-pulsesms.service depends on.
+matrix_matrix_pulsesms_systemd_required_services_list: ['docker.service']
+
+# List of systemd services that matrix-matrix-pulsesms.service wants
+matrix_matrix_pulsesms_systemd_wanted_services_list: []
+
+matrix_matrix_pulsesms_appservice_token: ''
+matrix_matrix_pulsesms_homeserver_token: ''
+
+matrix_matrix_pulsesms_appservice_bot_username: pulsesmsbot
+
+
+# Database-related configuration fields.
+#
+# To use SQLite, stick to these defaults.
+#
+# To use Postgres:
+# - change the engine (`matrix_matrix_pulsesms_database_engine: 'postgres'`)
+# - adjust your database credentials via the `matrix_matrix_pulsesms_postgres_*` variables
+matrix_matrix_pulsesms_database_engine: 'sqlite'
+
+matrix_matrix_pulsesms_sqlite_database_path_local: "{{ matrix_matrix_pulsesms_data_path }}/matrix-pulsesms.db"
+matrix_matrix_pulsesms_sqlite_database_path_in_container: "/data/matrix-pulsesms.db"
+
+matrix_matrix_pulsesms_database_username: 'matrix_matrix_pulsesms'
+matrix_matrix_pulsesms_database_password: 'some-password'
+matrix_matrix_pulsesms_database_hostname: 'matrix-postgres'
+matrix_matrix_pulsesms_database_port: 5432
+matrix_matrix_pulsesms_database_name: 'matrix_matrix_pulsesms'
+
+matrix_matrix_pulsesms_database_connection_string: 'postgresql://{{ matrix_matrix_pulsesms_database_username }}:{{ matrix_matrix_pulsesms_database_password }}@{{ matrix_matrix_pulsesms_database_hostname }}:{{ matrix_matrix_pulsesms_database_port }}/{{ matrix_matrix_pulsesms_database_name }}?sslmode=disable'
+
+matrix_matrix_pulsesms_appservice_database_type: "{{
+	{
+		'sqlite': 'sqlite3',
+		'postgres':'postgres',
+	}[matrix_matrix_pulsesms_database_engine]
+}}"
+
+matrix_matrix_pulsesms_appservice_database_uri: "{{
+	{
+		'sqlite': matrix_matrix_pulsesms_sqlite_database_path_in_container,
+		'postgres': matrix_matrix_pulsesms_database_connection_string,
+	}[matrix_matrix_pulsesms_database_engine]
+}}"
+
+
+# Can be set to enable automatic double-puppeting via Shared Secret Auth (https://github.com/devture/matrix-synapse-shared-secret-auth).
+matrix_matrix_pulsesms_login_shared_secret: ''
+
+# Default matrix-pulsesms configuration template which covers the generic use case.
+# You can customize it by controlling the various variables inside it.
+#
+# For a more advanced customization, you can extend the default (see `matrix_matrix_pulsesms_configuration_extension_yaml`)
+# or completely replace this variable with your own template.
+matrix_matrix_pulsesms_configuration_yaml: "{{ lookup('template', 'templates/config.yaml.j2') }}"
+
+matrix_matrix_pulsesms_configuration_extension_yaml: |
+  # Your custom YAML configuration goes here.
+  # This configuration extends the default starting configuration (`matrix_matrix_pulsesms_configuration_yaml`).
+  #
+  # You can override individual variables from the default configuration, or introduce new ones.
+  #
+  # If you need something more special, you can take full control by
+  # completely redefining `matrix_matrix_pulsesms_configuration_yaml`.
+  # space_template: TestPulse
+
+matrix_matrix_pulsesms_configuration_extension: "{{ matrix_matrix_pulsesms_configuration_extension_yaml|from_yaml if matrix_matrix_pulsesms_configuration_extension_yaml|from_yaml is mapping else {} }}"
+
+# Holds the final configuration (a combination of the default and its extension).
+# You most likely don't need to touch this variable. Instead, see `matrix_matrix_pulsesms_configuration_yaml`.
+matrix_matrix_pulsesms_configuration: "{{ matrix_matrix_pulsesms_configuration_yaml|from_yaml|combine(matrix_matrix_pulsesms_configuration_extension, recursive=True) }}"
+
+matrix_matrix_pulsesms_registration_yaml: |
+  id: pulsesms
+  url: {{ matrix_matrix_pulsesms_appservice_address }}
+  as_token: "{{ matrix_matrix_pulsesms_appservice_token }}"
+  hs_token: "{{ matrix_matrix_pulsesms_homeserver_token }}"
+  # See https://github.com/tulir/mautrix-signal/issues/43
+  sender_localpart: {{ matrix_matrix_pulsesms_appservice_bot_username }}
+  rate_limited: false
+  namespaces:
+      users:
+      - regex: '^@pulsesms_[0-9]+:{{ matrix_matrix_pulsesms_homeserver_domain|regex_escape }}$'
+        exclusive: true
+      - exclusive: true
+        regex: '^@{{ matrix_matrix_pulsesms_appservice_bot_username|regex_escape }}:{{ matrix_matrix_pulsesms_homeserver_domain|regex_escape }}$'
+  de.sorunome.msc2409.push_ephemeral: false
+
+matrix_matrix_pulsesms_registration: "{{ matrix_matrix_pulsesms_registration_yaml|from_yaml }}"

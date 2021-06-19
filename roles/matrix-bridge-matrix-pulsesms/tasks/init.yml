@@ -1,0 +1,16 @@
+- set_fact:
+    matrix_systemd_services_list: "{{ matrix_systemd_services_list + ['matrix-matrix-pulsesms.service'] }}"
+  when: matrix_matrix_pulsesms_enabled|bool
+
+# If the matrix-synapse role is not used, these variables may not exist.
+- set_fact:
+    matrix_synapse_container_extra_arguments: >
+      {{ matrix_synapse_container_extra_arguments|default([]) }}
+      +
+      ["--mount type=bind,src={{ matrix_matrix_pulsesms_config_path }}/registration.yaml,dst=/matrix-matrix-pulsesms-registration.yaml,ro"]
+
+    matrix_synapse_app_service_config_files: >
+      {{ matrix_synapse_app_service_config_files|default([]) }}
+      +
+      {{ ["/matrix-matrix-pulsesms-registration.yaml"] }}
+  when: matrix_matrix_pulsesms_enabled|bool
